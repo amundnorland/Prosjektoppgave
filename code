@@ -1,1 +1,97 @@
 #write code here
+
+import numpy as np
+import sys
+import pandas as pd
+import pyomo.environ as pyo
+from pyomo.opt import SolverFactory
+import time
+
+
+model = pyo.AbstractModel()
+
+
+
+"""
+SETS 
+"""
+
+
+#Defining Sets
+
+#Declaring Sets
+model.Time = pyo.Set(ordered=True) #Set of time periods
+model.EnergySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
+model.Batteries = pyo.Set(ordered=True) #Set of different batteries
+
+#Reading the Sets, and loading the data
+
+data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
+
+data.load(filename="filename with data", format="set", set=model.Time)
+data.load(filename="filename with data", format="set", set=model.EnergySources)
+data.load(filename="filename with data", format="set", set=model.Batteries)
+
+
+"""
+PARAMETERS
+"""
+
+
+#Defining Parameters
+
+#Declaring Parameters
+model.Cost_Energy = pyo.Param(model.EnergySources, model.Time) #Cost of using energy source \( j \) at time \( t \).
+model.Cost_Battery = pyo.Param(model.Time) #Cost associated with using the battery at time \( t \).
+model.Power_cap = pyo.Param(ordered=True) #Power capacity of energy source j (in MW)
+
+#Reading the Parameters, and loading the data
+
+data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
+
+data.load(filename="filename with data", format="set", set=model.Time)
+data.load(filename="filename with data", format="set", set=model.EnergySources)
+data.load(filename="filename with data", format="set", set=model.Batteries)
+
+
+
+"""
+VARIABLES
+"""
+
+
+
+#Defining Variables
+
+#Declaring Variables
+model.Time = pyo.Set(ordered=True) #Set of time periods
+model.EnergySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
+model.Batteries = pyo.Set(ordered=True) #Set of different batteries
+
+#Reading the Sets, and loading the data
+
+data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
+
+data.load(filename="filename with data", format="set", set=model.Time)
+data.load(filename="filename with data", format="set", set=model.EnergySources)
+data.load(filename="filename with data", format="set", set=model.Batteries)
+
+
+"""
+Defining a function that reads our data from the excel File
+"""
+
+def Read_Excel(name): 
+
+    #Reading the input of excel file and put data into dataframes
+    #data seperated between each sheet and stored into one dictionary
+
+    data = {}    #A dictionary storing the input data
+
+    #Specific dictionaries for the data we want tio extract:
+
+    Dictionary1 = {}
+    Dictionary2 = {}
+    Dictionary3 = {}
+
+df = pd.read_excel(name, sheet_name = ("Name of excel sheet we want to get"), spirows = 2, nrows =5,usecols =  )
