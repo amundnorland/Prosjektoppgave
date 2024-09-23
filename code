@@ -60,13 +60,10 @@ VARIABLES
 """
 
 
-
 #Defining Variables
-
-#Declaring Variables
-model.Time = pyo.Set(ordered=True) #Set of time periods
-model.EnergySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
-model.Batteries = pyo.Set(ordered=True) #Set of different batteries
+model.x_aFRR_UP = pyo.Var(model.time, domain=NonNegativeReals)
+model.x_aFRR_DWN = pyo.Var(model.time, domain=NonNegativeReals)
+model.y_supply = pyo.Var(model.time, model.scenario, model.energy, domain=NonNegativeReals)
 
 #Reading the Sets, and loading the data
 
