@@ -21,7 +21,7 @@ SETS
 
 #Declaring Sets
 model.Time = pyo.Set(ordered=True) #Set of time periods
-model.TimeLoadShift = pyo.Set(ordered=True) #subset of time periods for load shifting
+model.TimeLoadShift = pyo.Set(within=model.Time) #subset of time periods for load shifting
 model.EnergySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
 model.FlexibleLoads = pyo.Set(ordered=True) #Set of flexible loads
 model.Scenarios = pyo.Set(ordered=True) #Set of scenarios
@@ -30,9 +30,12 @@ model.Scenarios = pyo.Set(ordered=True) #Set of scenarios
 
 data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
 
-data.load(filename="filename with data", format="set", set=model.Time)
-data.load(filename="filename with data", format="set", set=model.EnergySources)
-data.load(filename="filename with data", format="set", set=model.Batteries)
+data.load(filename="filename with time data", format="set", set=model.Time)
+data.load(filename="filename with loadshift data", format="set", set=model.TimeLoadShift)
+data.load(filename="filename with energy sources data", format="set", set=model.EnergySources)
+data.load(filename="filename with flexible data", format="set", set=model.FlexibleLoads)
+data.load(filename="filename with scenarios", format="set", set=model.Scenarios)
+
 
 
 """
@@ -62,12 +65,22 @@ model.Down_Shift_Max = pyo.Param()  # Maximum allowable down-shifting in load sh
 
 #Reading the Parameters, and loading the data
 
-data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
-
-data.load(filename="filename with data", format="set", set=model.Time)
-data.load(filename="filename with data", format="set", set=model.EnergySources)
-data.load(filename="filename with data", format="set", set=model.Batteries)
-
+data.load(filename="filename with data", param=model.Cost_Energy, format = "table")
+data.load(filename="filename with data", param=model.Cost_Export, format = "table")
+data.load(filename="filename with data", param=model.aFRR_Up_Price, format = "table")
+data.load(filename="filename with data", param=model.aFRR_Down_Price, format = "table")
+data.load(filename="filename with data", param=model.Demand, format = "table")
+data.load(filename="filename with data", param=model.Max_Charge_Rate, format = "table")
+data.load(filename="filename with data", param=model.Max_Discharge_Rate, format = "table")
+data.load(filename="filename with data", param=model.Charge_Efficiency, format = "table")
+data.load(filename="filename with data", param=model.Discharge_Efficiency, format = "table")
+data.load(filename="filename with data", param=model.Max_Storage_Cap, format = "table")
+data.load(filename="filename with data", param=model.Self_Discharge, format = "table")
+data.load(filename="filename with data", param=model.Initial_SOC, format = "table")
+data.load(filename="filename with data", param=model.Scenario_Probability, format = "table")
+data.load(filename="filename with data", param=model.Max_Cable_Capacity, format = "table")
+data.load(filename="filename with data", param=model.Up_Shift_Max, format = "table")
+data.load(filename="filename with data", param=model.Down_Shift_Max, format = "table")
 
 
 """
@@ -76,34 +89,95 @@ VARIABLES
 
 
 #Defining Variables
-model.x_aFRR_UP = pyo.Var(model.time, domain=NonNegativeReals)
-model.x_aFRR_DWN = pyo.Var(model.time, domain=NonNegativeReals)
-model.y_supply = pyo.Var(model.time, model.scenario, model.energy, domain=NonNegativeReals)
 
-#Reading the Sets, and loading the data
-
-data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
-
-data.load(filename="filename with data", format="set", set=model.Time)
-data.load(filename="filename with data", format="set", set=model.EnergySources)
-data.load(filename="filename with data", format="set", set=model.Batteries)
+#Declaring Variables
+model.x_aFRR_UP = pyo.Var(model.Time, domain= pyo.NonNegativeReals)
+model.x_aFRR_DWN = pyo.Var(model.Time, domain= pyo.NonNegativeReals)
+model.y_supply = pyo.Var(model.Scenarios, model.Time, model.EnergySources, domain= pyo.NonNegativeReals)
+model.z_export = pyo.Var(model.Scenarios, model.Time, domain= pyo.NonNegativeReals)
+model.q_charge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
+model.q_discharge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
+model.e_stored = pyo.Var(model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
 
 
 """
-Defining a function that reads our data from the excel File
+STATING THE MATHEMATICAL MODEL
 """
 
-def Read_Excel(name): 
+"""
+OBJECTIVE FUNCTION
+"""
+def Objective(model):
+    return -(sum(model.x_aFRR_UP[t]*model.aFRR_Up_Price[t] + model.x_aFRR_DWN[t]*model.aFRR_Down_Price for t in model.Time)) + \
+        sum(model.Scenario_Probability[s] * sum(sum(model.y_supply[s, t, i] * model.Cost_Energy[i, t] for i in model.EnergySources) - model.z_export[s, t] * model.Cost_Export[t] for t in model.Time) for s in model.Scenarios)
+model.OBJ = pyo.Objective(rule = Objective, sense = pyo.minimize)
 
-    #Reading the input of excel file and put data into dataframes
-    #data seperated between each sheet and stored into one dictionary
+"""
+CONSTRAINTS
+"""  
+def EnergyBalance(model, t, s): 
+    return model.Demand[t] + model.x_aFRR_UP[t] - model.x_aFRR_DWN[t] == \
+           sum(model.y_supply[s, t, i] for i in model.EnergySources) - model.z_export[s, t] - \
+           sum(model.Charge_Efficiency[b] * model.q_charge[s, t, b] - model.q_discharge[s, t, b] for b in model.FlexibleLoads)
+model.EnergyBalance = pyo.Constraint(model.Time, model.Scenarios, rule=EnergyBalance)
 
-    data = {}    #A dictionary storing the input data
+def CapacityConstraintLoadShifting(model, t):
+    return model.Up_Shift_Max * model.Demand[t] <= model.e_stored[t, 2] <= model.Down_Shift_Max * model.Demand[t]
+model.CapacityConstraintLoadShifting = pyo.Constraint(model.Time, rule=CapacityConstraintLoadShifting)
 
-    #Specific dictionaries for the data we want tio extract:
+def LoadShiftingTimeWindow(model, t):
+    if t in model.TimeLoadShift:
+        return model.e_stored[t, 2] == 0
+    return pyo.Constraint.Skip
+model.LoadShiftingTimeWindow = pyo.Constraint(model.Time, rule=LoadShiftingTimeWindow)
 
-    Dictionary1 = {}
-    Dictionary2 = {}
-    Dictionary3 = {}
+def aFRRUpLimit(model, t, s):
+    return model.x_aFRR_UP[t] <= sum(model.q_discharge[s, t, b] for b in model.FlexibleLoads)
+model.aFRRUpLimit = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRUpLimit)
 
-df = pd.read_excel(name, sheet_name = ("Name of excel sheet we want to get"), spirows = 2, nrows =5,usecols =  )
+def aFRRDownLimit(model, t, s):
+    return model.x_aFRR_DWN[t] <= sum(model.q_charge[s, t, b] for b in model.FlexibleLoads)
+model.aFRRDownLimit = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRDownLimit)
+
+def ChargeLimit(model, t, s, b):
+    return model.q_charge[s, t, b] <= model.Max_Charge_Rate[b]
+model.ChargeLimit = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=ChargeLimit)
+
+def DischargeLimit(model, t, s, b):
+    return model.q_discharge[s, t, b] <= model.Max_Discharge_Rate[b]
+model.DischargeLimit = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=DischargeLimit)
+
+def StorageDynamics(model, t, s, b):
+    if t < len(model.Time):
+        return model.e_stored[t+1, b] == model.e_stored[t, b] * (1 - model.Self_Discharge[b]) + model.q_charge[s, t, b] - (model.q_discharge[s, t, b])/(model.Discharge_Efficiency[b])
+    return pyo.Constraint.Skip
+model.StorageDynamics = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=StorageDynamics)
+
+def EnergyLimits(model, t, b):
+    return model.e_stored[t, 1] <= model.Max_Storage_Cap[b]
+model.EnergyLimits = pyo.Constraint(model.Time, model.FlexibleLoads, rule=EnergyLimits)
+
+def InitFlexibleAssets(model, b):
+    return model.e_stored[1, b] == model.Initial_SOC[b]
+model.InitFlexibleAssets = pyo.Constraint(model.FlexibleLoads, rule=InitFlexibleAssets)
+
+def ImportLimitation(model, t, s):
+    return model.y_supply[s, t, 'grid'] + model.x_aFRR_DWN[t] <= model.Max_Cable_Capacity
+model.ImportLimitation = pyo.Constraint(model.Time, model.Scenarios, rule=ImportLimitation)
+
+def ExportLimitation(model, t, s):
+    return model.z_export[s, t] + model.x_aFRR_UP[t] <= model.Max_Cable_Capacity
+model.ExportLimitation = pyo.Constraint(model.Time, model.Scenarios, rule=ExportLimitation)
+
+
+
+opt = SolverFactory("gurobi", Verbose=True)
+    
+model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+    
+#Solve the problem
+results = opt.solve(model)
+    
+#Display results
+model.display()
+model.dual.display()
