@@ -170,14 +170,70 @@ def ExportLimitation(model, t, s):
 model.ExportLimitation = pyo.Constraint(model.Time, model.Scenarios, rule=ExportLimitation)
 
 
+"""
+MATCHING DATA FROM CASE WITH MATHEMATICAL MODEL AND PRINTING DATA
+"""
+our_model = model.create_instance(data)   
+our_model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT) #Import dual values into solver results
 
+
+"""
+SOLVING PROBLEM
+"""
 opt = SolverFactory("gurobi", Verbose=True)
-    
-model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
-    
-#Solve the problem
-results = opt.solve(model)
-    
-#Display results
+results = opt.solve(our_model)
+
+"""
+DISPLAY RESULTS??
+"""
 model.display()
 model.dual.display()
+
+"""
+EXTRACT VALUE OF VARIABLES AND WRITE THEM INTO EXCEL FILE
+"""
+
+def save_results_to_excel(variable):
+    # Create an Excel writer object
+    with pd.ExcelWriter('Variable_results.xlsx', engine='xlsxwriter') as writer:
+        
+        # Storing x_aFRR_UP results
+        x_aFRR_UP_data = [(t, pyo.value(variable.x_aFRR_UP[t])) for t in variable.Time]
+        x_aFRR_UP_df = pd.DataFrame(x_aFRR_UP_data, columns=['Time', 'x_aFRR_UP'])
+        x_aFRR_UP_df.to_excel(writer, sheet_name='x_aFRR_UP', index=False)
+        
+        # Storing x_aFRR_UP results
+        x_aFRR_DWN_data = [(t, pyo.value(variable.x_aFRR_DWN[t])) for t in variable.Time]
+        x_aFRR_DWN_df = pd.DataFrame(x_aFRR_UP_data, columns=['Time', 'x_aFRR_UP'])
+        x_aFRR_DWN_df.to_excel(writer, sheet_name='x_aFRR_DWN', index=False)
+        
+        # Storing y_supply results
+        y_supply_data = [(s, t, i, pyo.value(variable.y_supply[s, t, i])) for s in variable.Scenarios for t in model_instance.Time for i in model_instance.EnergySources]
+        y_supply_df = pd.DataFrame(y_supply_data, columns=['Scenario', 'Time', 'EnergySource', 'y_supply'])
+        y_supply_df.to_excel(writer, sheet_name='y_supply', index=False)
+        
+        # Storing z_export results
+        z_export_data = [(s, t, pyo.value(variable.z_export[s, t])) for s in variable.Scenarios for t in variable.Time]
+        z_export_df = pd.DataFrame(z_export_data, columns=['Scenario', 'Time', 'z_export'])
+        z_export_df.to_excel(writer, sheet_name='z_export', index=False)
+        
+        # Storing q_charge results
+        q_charge_data = [(s, t, b, pyo.value(variable.q_charge[s, t, b])) for s in variable.Scenarios for t in variable.Time for b in variable.FlexibleLoads]
+        q_charge_df = pd.DataFrame(q_charge_data, columns=['Scenario', 'Time', 'FlexibleLoad', 'q_charge'])
+        q_charge_df.to_excel(writer, sheet_name='q_charge', index=False)
+        
+        # Storing q_discharge results
+        q_discharge_data = [(s, t, b, pyo.value(variable.q_discharge[s, t, b])) for s in variable.Scenarios for t in variable.Time for b in variable.FlexibleLoads]
+        q_discharge_df = pd.DataFrame(q_discharge_data, columns=['Scenario', 'Time', 'FlexibleLoad', 'q_discharge'])
+        q_discharge_df.to_excel(writer, sheet_name='q_discharge', index=False)
+        
+        # Storing e_stored results (for flexible loads)
+        e_stored_data = [(t, b, pyo.value(model_instance.e_stored[t, b])) for t in variable.Time for b in variable.FlexibleLoads]
+        e_stored_df = pd.DataFrame(e_stored_data, columns=['Time', 'FlexibleLoad', 'e_stored'])
+        e_stored_df.to_excel(writer, sheet_name='e_stored', index=False)
+        
+
+# Call the function to save the results
+save_results_to_excel(our_model)
+
+print("Results saved to Variable_Results.xlsx")
