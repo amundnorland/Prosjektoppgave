@@ -21,8 +21,10 @@ SETS
 
 #Declaring Sets
 model.Time = pyo.Set(ordered=True) #Set of time periods
+model.TimeLoadShift = pyo.Set(ordered=True) #subset of time periods for load shifting
 model.EnergySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
-model.Batteries = pyo.Set(ordered=True) #Set of different batteries
+model.FlexibleLoads = pyo.Set(ordered=True) #Set of flexible loads
+model.Scenarios = pyo.Set(ordered=True) #Set of scenarios
 
 #Reading the Sets, and loading the data
 
@@ -41,9 +43,22 @@ PARAMETERS
 #Defining Parameters
 
 #Declaring Parameters
-model.Cost_Energy = pyo.Param(model.EnergySources, model.Time) #Cost of using energy source \( j \) at time \( t \).
-model.Cost_Battery = pyo.Param(model.Time) #Cost associated with using the battery at time \( t \).
-model.Power_cap = pyo.Param(ordered=True) #Power capacity of energy source j (in MW)
+model.Cost_Energy = pyo.Param(model.EnergySources, model.Time)  # Cost of using energy source i at time t
+model.Cost_Export = pyo.Param(model.Time)  # Income from exporting energy to the grid at time t
+model.aFRR_Up_Price = pyo.Param(model.Time)  # Price for aFRR up regulation at time t
+model.aFRR_Down_Price = pyo.Param(model.Time)  # Price for aFRR down regulation at time t
+model.Demand = pyo.Param(model.Time)  # Energy demand at time t
+model.Max_Charge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum charge rate of flexible load b [MW]
+model.Max_Discharge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum discharge rate of flexible load b [MW]
+model.Charge_Efficiency = pyo.Param(model.FlexibleLoads)  # Efficiency of charging flexible load b [-]
+model.Discharge_Efficiency = pyo.Param(model.FlexibleLoads)  # Efficiency of discharging flexible load b [-]
+model.Max_Storage_Cap = pyo.Param(model.FlexibleLoads)  # Maximum energy storage capacity of flexible load b [MWh]
+model.Self_Discharge = pyo.Param(model.FlexibleLoads)  # Self-discharge rate of flexible load b [%]
+model.Initial_SOC = pyo.Param(model.FlexibleLoads)  # Initial state of charge for flexible load b [-]
+model.Scenario_Probability = pyo.Param(model.Scenarios)  # Probability of scenario s [-]
+model.Max_Cable_Capacity = pyo.Param()  # Maximum capacity of power cable for import/export [MW]
+model.Up_Shift_Max = pyo.Param()  # Maximum allowable up-shifting in load shifting periods as a percentage of demand [% of demand]
+model.Down_Shift_Max = pyo.Param()  # Maximum allowable down-shifting in load shifting periods as a percentage of demand [% of demand]
 
 #Reading the Parameters, and loading the data
 
