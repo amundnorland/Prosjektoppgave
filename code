@@ -20,11 +20,11 @@ SETS
 #Defining Sets
 
 #Declaring Sets
-model.Time = pyo.Set(ordered=True) #Set of time periods
-model.TimeLoadShift = pyo.Set(within=model.Time) #subset of time periods for load shifting
-model.ElectricitySources = pyo.Set(ordered=True) #Set of different EnergySources e.g. grid, gas and electricity?
-model.FlexibleLoads = pyo.Set(ordered=True) #Set of flexible loads
-model.ShiftableLoads = pyo.Set(ordered=True) #Set of shiftable loads
+model.Time = pyo.Set(ordered=True) #Set of time periods (hours)
+model.TimeLoadShift = pyo.Set(within=model.Time) #Subset of time periods for load shifting
+model.ElectricitySources = pyo.Set(ordered=True) #Set of different ElectricitySources e.g. grid, solar
+model.FlexibleLoads = pyo.Set(ordered=True) #Set of flexible loads (batteries)
+model.ShiftableLoads = pyo.Set(within=model.FlexibleLoads) #Subset of shiftable loads (shift-able batteries)
 model.Scenarios = pyo.Set(ordered=True) #Set of scenarios
 
 #Reading the Sets, and loading the data
