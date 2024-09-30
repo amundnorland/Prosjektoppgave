@@ -31,12 +31,12 @@ model.Scenarios = pyo.Set(ordered=True) #Set of scenarios
 
 data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
 
-data.load(filename="filename with time data", format="set", set=model.Time)
-data.load(filename="filename with loadshift data", format="set", set=model.TimeLoadShift)
-data.load(filename="filename with energy sources data", format="set", set=model.ElectricitySources)
-data.load(filename="filename with flexible data", format="set", set=model.FlexibleLoads)
-data.load(filename="filename with shiftable data", format="set", set=model.ShiftableLoads)
-data.load(filename="filename with scenarios", format="set", set=model.Scenarios)
+data.load(filename="Time_data.tab", format="set", set=model.Time)
+data.load(filename="LoadShiftTimeWindow.tab", format="set", set=model.TimeLoadShift)
+data.load(filename="ElectricitySources.tab", format="set", set=model.ElectricitySources)
+data.load(filename="FlexibleLoad.tab", format="set", set=model.FlexibleLoads)
+data.load(filename="ShiftableLoads.tab", format="set", set=model.ShiftableLoads)
+data.load(filename="Defining_Scenarios.tab", format="set", set=model.Scenarios)
 
 
 
@@ -67,22 +67,22 @@ model.Down_Shift_Max = pyo.Param()  # Maximum allowable down-shifting in load sh
 
 #Reading the Parameters, and loading the data
 
-data.load(filename="filename with data", param=model.Cost_Energy, format = "table")
-data.load(filename="filename with data", param=model.Cost_Export, format = "table")
-data.load(filename="filename with data", param=model.aFRR_Up_Price, format = "table")
-data.load(filename="filename with data", param=model.aFRR_Down_Price, format = "table")
-data.load(filename="filename with data", param=model.Demand, format = "table")
-data.load(filename="filename with data", param=model.Max_Charge_Rate, format = "table")
-data.load(filename="filename with data", param=model.Max_Discharge_Rate, format = "table")
-data.load(filename="filename with data", param=model.Charge_Efficiency, format = "table")
-data.load(filename="filename with data", param=model.Discharge_Efficiency, format = "table")
-data.load(filename="filename with data", param=model.Max_Storage_Cap, format = "table")
-data.load(filename="filename with data", param=model.Self_Discharge, format = "table")
-data.load(filename="filename with data", param=model.Initial_SOC, format = "table")
-data.load(filename="filename with data", param=model.Scenario_Probability, format = "table")
-data.load(filename="filename with data", param=model.Max_Cable_Capacity, format = "table")
-data.load(filename="filename with data", param=model.Up_Shift_Max, format = "table")
-data.load(filename="filename with data", param=model.Down_Shift_Max, format = "table")
+data.load(filename="ElectricityCost.tab", param=model.Cost_Energy, format = "table")
+data.load(filename="CostExport.tab", param=model.Cost_Export, format = "table")
+data.load(filename="aFRR_upPrice.tab", param=model.aFRR_Up_Price, format = "table")
+data.load(filename="aFRR_dwnPrice.tab", param=model.aFRR_Down_Price, format = "table")
+data.load(filename="EnergyDemand.tab", param=model.Demand, format = "table")
+data.load(filename="MaxChargeRate.tab", param=model.Max_Charge_Rate, format = "table")
+data.load(filename="MaxDischargeRate.tab", param=model.Max_Discharge_Rate, format = "table")
+data.load(filename="Charge_efficiency.tab", param=model.Charge_Efficiency, format = "table")
+data.load(filename="Discharge_efficiency.tab", param=model.Discharge_Efficiency, format = "table")
+data.load(filename="Max_Storage_capacity.tab", param=model.Max_Storage_Cap, format = "table")
+data.load(filename="SelfDischarge.tab", param=model.Self_Discharge, format = "table")
+data.load(filename="InitialSOC.tab", param=model.Initial_SOC, format = "table")
+data.load(filename="ScenarioProbability.tab", param=model.Scenario_Probability, format = "table")
+data.load(filename="Max_transmission_cap.tab", param=model.Max_Cable_Capacity, format = "table")
+data.load(filename="MaximumUpShift.tab", param=model.Up_Shift_Max, format = "table")
+data.load(filename="MaximumDownShift.tab", param=model.Down_Shift_Max, format = "table")
 
 
 """
