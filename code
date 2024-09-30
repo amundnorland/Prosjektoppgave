@@ -48,10 +48,10 @@ PARAMETERS
 #Defining Parameters
 
 #Declaring Parameters
-model.Cost_Energy = pyo.Param(model.ElectricitySources, model.Time)  # Cost of using energy source i at time t
+model.Cost_Energy = pyo.Param(model.ElectricitySources, model.Time, default=0.0)  # Cost of using energy source i at time t
 model.Cost_Export = pyo.Param(model.Time)  # Income from exporting energy to the grid at time t
-model.aFRR_Up_Price = pyo.Param(model.Time)  # Price for aFRR up regulation at time t
-model.aFRR_Down_Price = pyo.Param(model.Time)  # Price for aFRR down regulation at time t
+model.aFRR_Up_Price = pyo.Param(model.Time, default=0.0)  # Price for aFRR up regulation at time t
+model.aFRR_Down_Price = pyo.Param(model.Time, default=0.0)  # Price for aFRR down regulation at time t
 model.Demand = pyo.Param(model.Time)  # Energy demand at time t
 model.Max_Charge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum charge rate of flexible load b [MW]
 model.Max_Discharge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum discharge rate of flexible load b [MW]
@@ -110,8 +110,8 @@ STATING THE MATHEMATICAL MODEL
 OBJECTIVE FUNCTION
 """
 def Objective(model):
-    return -(sum(model.x_aFRR_UP[t]*model.aFRR_Up_Price[t] + model.x_aFRR_DWN[t]*model.aFRR_Down_Price for t in model.Time)) + \
-        sum(model.Scenario_Probability[s] * sum(sum(model.y_supply[s, t, i] * model.Cost_Energy[i, t] for i in model.EnergySources) - model.z_export[s, t] * model.Cost_Export[t] for t in model.Time) for s in model.Scenarios)
+    return -(sum(model.x_aFRR_UP[t]*model.aFRR_Up_Price[t] + model.x_aFRR_DWN[t]*model.aFRR_Down_Price[t] for t in model.Time)) + \
+        sum(model.Scenario_Probability[s] * sum(sum(model.y_supply[s, t, i] * model.Cost_Energy[i, t] for i in model.ElectricitySources) - model.z_export[s, t] * model.Cost_Export[t] for t in model.Time) for s in model.Scenarios)
 model.OBJ = pyo.Objective(rule = Objective, sense = pyo.minimize)
 
 """
@@ -119,7 +119,7 @@ CONSTRAINTS
 """  
 def EnergyBalance(model, t, s): 
     return model.Demand[t] + model.x_aFRR_UP[t] - model.x_aFRR_DWN[t] == \
-           sum(model.y_supply[s, t, i] for i in model.EnergySources) - model.z_export[s, t] - \
+           sum(model.y_supply[s, t, i] for i in model.ElectricitySources) - model.z_export[s, t] - \
            sum(model.Charge_Efficiency[b] * model.q_charge[s, t, b] - model.q_discharge[s, t, b] for b in model.FlexibleLoads)
 model.EnergyBalance = pyo.Constraint(model.Time, model.Scenarios, rule=EnergyBalance)
 

@@ -1,4 +1,4 @@
-ElectricitySources	Time[h]	Cost [MWh]
+ElectricitySources	Time	Cost 
 Grid	1	5.2
 Battery	1	10
 Solar	1	0
