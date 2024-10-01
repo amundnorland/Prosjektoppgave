@@ -1,4 +1,5 @@
 FlexibleLoads	Max_Storage_Cap
+ShiftableDemand    3
 Battery1	2
 Battery2	2.5
 Battery3	3

@@ -10,7 +10,7 @@ import time
 
 model = pyo.AbstractModel()
 
-
+data = pyo.DataPortal() #Loading the data from a data soruce in a uniform manner (Excel)
 
 """
 SETS 
@@ -38,23 +38,17 @@ data.load(filename="FlexibleLoad.tab", format="set", set=model.FlexibleLoads)
 data.load(filename="ShiftableLoads.tab", format="set", set=model.ShiftableLoads)
 data.load(filename="Defining_Scenarios.tab", format="set", set=model.Scenarios)
 
-
-
 """
 PARAMETERS
 """
-
-
-#Defining Parameters
-
 #Declaring Parameters
 model.Cost_Energy = pyo.Param(model.ElectricitySources, model.Time, default=0.0)  # Cost of using energy source i at time t
 model.Cost_Export = pyo.Param(model.Time)  # Income from exporting energy to the grid at time t
 model.aFRR_Up_Price = pyo.Param(model.Time, default=0.0)  # Price for aFRR up regulation at time t
 model.aFRR_Down_Price = pyo.Param(model.Time, default=0.0)  # Price for aFRR down regulation at time t
 model.Demand = pyo.Param(model.Time)  # Energy demand at time t
-model.Max_Charge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum charge rate of flexible load b [MW]
-model.Max_Discharge_Rate = pyo.Param(model.FlexibleLoads)  # Maximum discharge rate of flexible load b [MW]
+model.Max_Charge_Rate = pyo.Param(model.FlexibleLoads, default = 1)  # Maximum charge rate of flexible load b [MW]
+model.Max_Discharge_Rate = pyo.Param(model.FlexibleLoads, default = 1)  # Maximum discharge rate of flexible load b [MW]
 model.Charge_Efficiency = pyo.Param(model.FlexibleLoads)  # Efficiency of charging flexible load b [-]
 model.Discharge_Efficiency = pyo.Param(model.FlexibleLoads)  # Efficiency of discharging flexible load b [-]
 model.Max_Storage_Cap = pyo.Param(model.FlexibleLoads)  # Maximum energy storage capacity of flexible load b [MWh]
@@ -99,8 +93,7 @@ model.y_supply = pyo.Var(model.Scenarios, model.Time, model.ElectricitySources, 
 model.z_export = pyo.Var(model.Scenarios, model.Time, domain= pyo.NonNegativeReals)
 model.q_charge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
 model.q_discharge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
-model.e_stored = pyo.Var(model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
-
+model.e_stored = pyo.Var(model.Time, model.ShiftableLoads, domain= pyo.NonNegativeReals)
 
 """
 STATING THE MATHEMATICAL MODEL
@@ -121,55 +114,60 @@ def EnergyBalance(model, t, s):
     return model.Demand[t] + model.x_aFRR_UP[t] - model.x_aFRR_DWN[t] == \
            sum(model.y_supply[s, t, i] for i in model.ElectricitySources) - model.z_export[s, t] - \
            sum(model.Charge_Efficiency[b] * model.q_charge[s, t, b] - model.q_discharge[s, t, b] for b in model.FlexibleLoads)
-model.EnergyBalance = pyo.Constraint(model.Time, model.Scenarios, rule=EnergyBalance)
+model.EnergyBalance_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=EnergyBalance)
 
-def CapacityConstraintLoadShifting(model, b, t):
-    return model.Up_Shift_Max * model.Demand[t] <= model.e_stored[b,t] <= model.Down_Shift_Max * model.Demand[t]
-model.CapacityConstraintLoadShifting = pyo.Constraint(model.ShiftableLoads, model.Time,  rule=CapacityConstraintLoadShifting)
+def CapacityConstraintLoadShifting_upper(model, t, b):
+    return model.e_stored[t, b] <= model.Down_Shift_Max * model.Demand[t]
+model.CapacityConstraintLoadShifting_upper = pyo.Constraint(model.Time, model.ShiftableLoads, rule=CapacityConstraintLoadShifting_upper)
 
-def LoadShiftingTimeWindow(model, b, t):
+def CapacityConstraintLoadShifting_lower(model, t, b):
+    return model.e_stored[t, b] >= model.Up_Shift_Max * model.Demand[t]
+model.CapacityConstraintLoadShifting_lower = pyo.Constraint(model.Time, model.ShiftableLoads, rule=CapacityConstraintLoadShifting_lower)
+
+def LoadShiftingTimeWindow(model, t, b):
     if t in model.TimeLoadShift:
-        return model.e_stored[b,t] == 0
+        return model.e_stored[t, b] == 0
     return pyo.Constraint.Skip
-model.LoadShiftingTimeWindow = pyo.Constraint(model.ShiftableLoads, model.Time, rule=LoadShiftingTimeWindow)
+model.LoadShifting_TimeWindow_constraint = pyo.Constraint(model.Time, model.ShiftableLoads, rule=LoadShiftingTimeWindow)
 
 def aFRRUpLimit(model, t, s):
     return model.x_aFRR_UP[t] <= sum(model.q_discharge[s, t, b] for b in model.FlexibleLoads)
-model.aFRRUpLimit = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRUpLimit)
+model.aFRRUpLimit_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRUpLimit)
 
 def aFRRDownLimit(model, t, s):
     return model.x_aFRR_DWN[t] <= sum(model.q_charge[s, t, b] for b in model.FlexibleLoads)
-model.aFRRDownLimit = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRDownLimit)
+model.aFRRDownLimit_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=aFRRDownLimit)
 
 def ChargeLimit(model, t, s, b):
     return model.q_charge[s, t, b] <= model.Max_Charge_Rate[b]
-model.ChargeLimit = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=ChargeLimit)
+model.ChargeLimit_constraint = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=ChargeLimit)
 
 def DischargeLimit(model, t, s, b):
     return model.q_discharge[s, t, b] <= model.Max_Discharge_Rate[b]
-model.DischargeLimit = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=DischargeLimit)
+model.DischargeLimit_constraint = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=DischargeLimit)
 
 def StorageDynamics(model, t, s, b):
-    if t < len(model.Time):
+    if t < max(model.Time):
         return model.e_stored[t+1, b] == model.e_stored[t, b] * (1 - model.Self_Discharge[b]) + model.q_charge[s, t, b] - (model.q_discharge[s, t, b])/(model.Discharge_Efficiency[b])
-    return pyo.Constraint.Skip
-model.StorageDynamics = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=StorageDynamics)
+    else:
+        return pyo.Constraint.Skip
+model.StorageDynamics_constraint = pyo.Constraint(model.Time, model.Scenarios, model.ShiftableLoads, rule=StorageDynamics)
 
 def EnergyLimits(model, t, b):
-    return model.e_stored[t, 1] <= model.Max_Storage_Cap[b]
-model.EnergyLimits = pyo.Constraint(model.Time, model.FlexibleLoads, rule=EnergyLimits)
+    return model.e_stored[t, b] <= model.Max_Storage_Cap[b]
+model.EnergyLimits_constraint = pyo.Constraint(model.Time, model.ShiftableLoads, rule=EnergyLimits)
 
 def InitFlexibleAssets(model, b):
     return model.e_stored[1, b] == model.Initial_SOC[b]
-model.InitFlexibleAssets = pyo.Constraint(model.FlexibleLoads, rule=InitFlexibleAssets)
+model.InitFlexibleAssets_constraint = pyo.Constraint(model.ShiftableLoads, rule=InitFlexibleAssets)
 
 def ImportLimitation(model, t, s):
-    return model.y_supply[s, t, 'grid'] + model.x_aFRR_DWN[t] <= model.Max_Cable_Capacity
-model.ImportLimitation = pyo.Constraint(model.Time, model.Scenarios, rule=ImportLimitation)
+    return model.y_supply[s, t, 'Grid'] + model.x_aFRR_DWN[t] <= model.Max_Cable_Capacity
+model.ImportLimitation_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=ImportLimitation)
 
 def ExportLimitation(model, t, s):
     return model.z_export[s, t] + model.x_aFRR_UP[t] <= model.Max_Cable_Capacity
-model.ExportLimitation = pyo.Constraint(model.Time, model.Scenarios, rule=ExportLimitation)
+model.ExportLimitation_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=ExportLimitation)
 
 
 """
@@ -195,47 +193,47 @@ model.dual.display()
 EXTRACT VALUE OF VARIABLES AND WRITE THEM INTO EXCEL FILE
 """
 
-def save_results_to_excel(variable):
+def save_results_to_excel(model_instance):
     # Create an Excel writer object
     with pd.ExcelWriter('Variable_results.xlsx', engine='xlsxwriter') as writer:
         
         # Storing x_aFRR_UP results
-        x_aFRR_UP_data = [(t, pyo.value(variable.x_aFRR_UP[t])) for t in variable.Time]
+        x_aFRR_UP_data = [(t, pyo.value(model_instance.x_aFRR_UP[t])) for t in model_instance.Time]
         x_aFRR_UP_df = pd.DataFrame(x_aFRR_UP_data, columns=['Time', 'x_aFRR_UP'])
         x_aFRR_UP_df.to_excel(writer, sheet_name='x_aFRR_UP', index=False)
         
-        # Storing x_aFRR_UP results
-        x_aFRR_DWN_data = [(t, pyo.value(variable.x_aFRR_DWN[t])) for t in variable.Time]
-        x_aFRR_DWN_df = pd.DataFrame(x_aFRR_UP_data, columns=['Time', 'x_aFRR_UP'])
+        # Storing x_aFRR_DWN results
+        x_aFRR_DWN_data = [(t, pyo.value(model_instance.x_aFRR_DWN[t])) for t in model_instance.Time]
+        x_aFRR_DWN_df = pd.DataFrame(x_aFRR_DWN_data, columns=['Time', 'x_aFRR_DWN'])
         x_aFRR_DWN_df.to_excel(writer, sheet_name='x_aFRR_DWN', index=False)
         
         # Storing y_supply results
-        y_supply_data = [(s, t, i, pyo.value(variable.y_supply[s, t, i])) for s in variable.Scenarios for t in variable.Time for i in variable .EnergySources]
+        y_supply_data = [(s, t, i, pyo.value(model_instance.y_supply[s, t, i])) for s in model_instance.Scenarios for t in model_instance.Time for i in model_instance.ElectricitySources]
         y_supply_df = pd.DataFrame(y_supply_data, columns=['Scenario', 'Time', 'EnergySource', 'y_supply'])
         y_supply_df.to_excel(writer, sheet_name='y_supply', index=False)
         
         # Storing z_export results
-        z_export_data = [(s, t, pyo.value(variable.z_export[s, t])) for s in variable.Scenarios for t in variable.Time]
+        z_export_data = [(s, t, pyo.value(model_instance.z_export[s, t])) for s in model_instance.Scenarios for t in model_instance.Time]
         z_export_df = pd.DataFrame(z_export_data, columns=['Scenario', 'Time', 'z_export'])
         z_export_df.to_excel(writer, sheet_name='z_export', index=False)
         
         # Storing q_charge results
-        q_charge_data = [(s, t, b, pyo.value(variable.q_charge[s, t, b])) for s in variable.Scenarios for t in variable.Time for b in variable.FlexibleLoads]
+        q_charge_data = [(s, t, b, pyo.value(model_instance.q_charge[s, t, b])) for s in model_instance.Scenarios for t in model_instance.Time for b in model_instance.FlexibleLoads]
         q_charge_df = pd.DataFrame(q_charge_data, columns=['Scenario', 'Time', 'FlexibleLoad', 'q_charge'])
         q_charge_df.to_excel(writer, sheet_name='q_charge', index=False)
         
         # Storing q_discharge results
-        q_discharge_data = [(s, t, b, pyo.value(variable.q_discharge[s, t, b])) for s in variable.Scenarios for t in variable.Time for b in variable.FlexibleLoads]
+        q_discharge_data = [(s, t, b, pyo.value(model_instance.q_discharge[s, t, b])) for s in model_instance.Scenarios for t in model_instance.Time for b in model_instance.FlexibleLoads]
         q_discharge_df = pd.DataFrame(q_discharge_data, columns=['Scenario', 'Time', 'FlexibleLoad', 'q_discharge'])
         q_discharge_df.to_excel(writer, sheet_name='q_discharge', index=False)
         
         # Storing e_stored results (for flexible loads)
-        e_stored_data = [(t, b, pyo.value(variable.e_stored[t, b])) for t in variable.Time for b in variable.FlexibleLoads]
+        e_stored_data = [(t, b, pyo.value(model_instance.e_stored[t, b])) for t in model_instance.Time for b in model_instance.FlexibleLoads]
         e_stored_df = pd.DataFrame(e_stored_data, columns=['Time', 'FlexibleLoad', 'e_stored'])
         e_stored_df.to_excel(writer, sheet_name='e_stored', index=False)
-        
 
 # Call the function to save the results
 save_results_to_excel(our_model)
+
 
 print("Results saved to Variable_Results.xlsx")
