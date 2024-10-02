@@ -93,7 +93,7 @@ model.y_supply = pyo.Var(model.Scenarios, model.Time, model.ElectricitySources, 
 model.z_export = pyo.Var(model.Scenarios, model.Time, domain= pyo.NonNegativeReals)
 model.q_charge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
 model.q_discharge = pyo.Var(model.Scenarios, model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
-model.e_stored = pyo.Var(model.Time, model.ShiftableLoads, domain= pyo.NonNegativeReals)
+model.e_stored = pyo.Var(model.Time, model.FlexibleLoads, domain= pyo.NonNegativeReals)
 
 """
 STATING THE MATHEMATICAL MODEL
@@ -126,7 +126,7 @@ model.CapacityConstraintLoadShifting_lower = pyo.Constraint(model.Time, model.Sh
 
 def LoadShiftingTimeWindow(model, t, b):
     if t in model.TimeLoadShift:
-        return model.e_stored[t, b] == 0
+        return model.e_stored[t, b] == 0.5*model.Demand[t]
     return pyo.Constraint.Skip
 model.LoadShifting_TimeWindow_constraint = pyo.Constraint(model.Time, model.ShiftableLoads, rule=LoadShiftingTimeWindow)
 
@@ -147,23 +147,27 @@ def DischargeLimit(model, t, s, b):
 model.DischargeLimit_constraint = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=DischargeLimit)
 
 def StorageDynamics(model, t, s, b):
-    if t < max(model.Time):
-        return model.e_stored[t+1, b] == model.e_stored[t, b] * (1 - model.Self_Discharge[b]) + model.q_charge[s, t, b] - (model.q_discharge[s, t, b])/(model.Discharge_Efficiency[b])
+    if t > 1:
+        return model.e_stored[t, b] == model.e_stored[t-1, b] * (1 - model.Self_Discharge[b]) + model.q_charge[s, t, b] - (model.q_discharge[s, t, b])/(model.Discharge_Efficiency[b])
     else:
-        return pyo.Constraint.Skip
-model.StorageDynamics_constraint = pyo.Constraint(model.Time, model.Scenarios, model.ShiftableLoads, rule=StorageDynamics)
+        return model.e_stored[t, b] == model.Initial_SOC[b]*model.Max_Storage_Cap[b]
+model.StorageDynamics_constraint = pyo.Constraint(model.Time, model.Scenarios, model.FlexibleLoads, rule=StorageDynamics)
 
 def EnergyLimits(model, t, b):
     return model.e_stored[t, b] <= model.Max_Storage_Cap[b]
-model.EnergyLimits_constraint = pyo.Constraint(model.Time, model.ShiftableLoads, rule=EnergyLimits)
+model.EnergyLimits_constraint = pyo.Constraint(model.Time, model.FlexibleLoads, rule=EnergyLimits)
 
-def InitFlexibleAssets(model, b):
-    return model.e_stored[1, b] == model.Initial_SOC[b]
-model.InitFlexibleAssets_constraint = pyo.Constraint(model.ShiftableLoads, rule=InitFlexibleAssets)
+#def InitFlexibleAssets(model, b):
+#    return model.e_stored[1, b] == model.Initial_SOC[b]*model.Max_Storage_Cap[b]
+#model.InitFlexibleAssets_constraint = pyo.Constraint(model.FlexibleLoads, rule=InitFlexibleAssets)
 
-def ImportLimitation(model, t, s):
-    return model.y_supply[s, t, 'Grid'] + model.x_aFRR_DWN[t] <= model.Max_Cable_Capacity
-model.ImportLimitation_constraint = pyo.Constraint(model.Time, model.Scenarios, rule=ImportLimitation)
+#def ImportLimitation(model, t, s, i):
+#    return model.y_supply[s, t, i] + model.x_aFRR_DWN[t] <= model.Max_Cable_Capacity
+#model.ImportLimitation_constraint = pyo.Constraint(model.Time, model.Scenarios, model.ElectricitySources, rule=ImportLimitation)
+
+def SupplyLimitation(model, t, s, i):
+    return model.y_supply[s, t, i] <= 20 #model.Max_Supply[s, t, i]
+model.SupplyLimitation_constraint = pyo.Constraint(model.Time, model.Scenarios, model.ElectricitySources, rule=SupplyLimitation)
 
 def ExportLimitation(model, t, s):
     return model.z_export[s, t] + model.x_aFRR_UP[t] <= model.Max_Cable_Capacity
@@ -175,7 +179,7 @@ MATCHING DATA FROM CASE WITH MATHEMATICAL MODEL AND PRINTING DATA
 """
 our_model = model.create_instance(data)   
 our_model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT) #Import dual values into solver results
-
+#import pdb; pdb.set_trace()
 
 """
 SOLVING PROBLEM
@@ -186,8 +190,8 @@ results = opt.solve(our_model)
 """
 DISPLAY RESULTS??
 """
-model.display()
-model.dual.display()
+our_model.display()
+our_model.dual.display()
 
 """
 EXTRACT VALUE OF VARIABLES AND WRITE THEM INTO EXCEL FILE
